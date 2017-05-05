@@ -5,12 +5,14 @@ const spawn = require( 'child_process' ).spawn;
 const keypress = require( 'keypress' );
 const term = require( 'terminal-kit' ).terminal;
 
-function sayPhrase( phrase, voice = '' ) {
+function sayPhrase( phrase, voice = '', quiet = false ) {
   let args = [
     '-r', '150',
-    '-i',
     shellescape( [ phrase ] )
   ];
+  if ( !quiet ) {
+    args.unshift( '-i' );
+  }
   if ( voice ) {
     args.unshift( '-v', voice );
   }
@@ -28,39 +30,48 @@ function sayPhrase( phrase, voice = '' ) {
 }
 
 function quitCauseError( code, error ) {
-  console.error( `Error code ${ code }` );
-  console.error( error );
-  process.exit( 1 );
+  const errorMessage = `Error ${ code }!\n${ error }`;
+  console.error( errorMessage );
+  sayPhrase( errorMessage, '', true ).then( () => process.exit( 1 ) );
+  return false;
 }
 
 function quitCauseInvalidArguments( code ) {
-  quitCauseError(
+  return quitCauseError(
     code,
-    `Use this command like this:\n$  msay script.txt [phraseNum] [options]`
+    'Invalid arguments!\n' +
+    'Use this command like this:\n' +
+    '  msay filename [index] [options]\n\n' +
+
+    'Options are:\n' +
+    '  -i    - Interactive mode.\n' +
+    '  -v    - Voice.'
   );
 }
 
 function quitCauseFileNotFound( fileName ) {
-  quitCauseError(
-    3,
+  return quitCauseError(
+    -3,
     `\`${ fileName }\` is not a file or doesn't exist`
   );
 }
 
 function quitCausePhraseNotFound() {
-  quitCauseError(
-    4,
-    `The given phraseNum doesn't exist`
+  return quitCauseError(
+    -4,
+    `The given index doesn't exist`
   );
 }
 
 function checkArguments( argv ) {
-  !argv._ || !argv._.length && quitCauseInvalidArguments( -1 );
-  if ( !argv.i ) {
-    argv._.length !== 2 && quitCauseInvalidArguments( -2 );
+  if ( !argv._ || !argv._.length ) {
+    return quitCauseInvalidArguments( -1 );
   }
-  else {
-    argv._.length < 1 && quitCauseInvalidArguments( -2.1 );
+  if ( !argv.i && argv._.length !== 2 ) {
+    return quitCauseInvalidArguments( -2 );
+  }
+  else if ( argv.i && argv._.length < 1 ) {
+    return quitCauseInvalidArguments( -2.1 );
   }
 
   const fileName = argv._[ 0 ];
@@ -73,18 +84,18 @@ function checkArguments( argv ) {
 }
 
 function checkIfFileExists( fileName ) {
-  return new Promise( ( resolve ) => {
+  return new Promise( ( resolve, reject ) => {
     try {
       fs.stat( fileName, ( err, stat ) => {
         if ( err || !stat.isFile() ) {
-          return quitCauseFileNotFound( fileName );
+          return reject( quitCauseFileNotFound( fileName ) );
         }
 
         return resolve( fileName );
       } );
     }
     catch ( e ) {
-      return quitCauseFileNotFound( fileName );
+      return reject( quitCauseFileNotFound( fileName ) );
     }
   } );
 }
@@ -108,7 +119,10 @@ function parsePhrases( data ) {
 
 function getPhrase( phrases, phraseNum ) {
   const index = phraseNum - 1;
-  !phrases[ index ] && quitCausePhraseNotFound();
+  if ( !phrases[ index ] ) {
+    quitCausePhraseNotFound();
+    throw new Error( 'Phrase does not exist' );
+  }
   return phrases[ index ];
 }
 
@@ -133,7 +147,8 @@ function defaultMode( fileName, phraseNum, voice ) {
     } )
     .then( ( phrases ) => getPhrase( phrases, phraseNum ) )
     .then( ( singlePhrase ) => verboseOut( singlePhrase, phraseNum, phraseCount ) )
-    .then( ( singlePhrase ) => sayPhrase( singlePhrase, voice ) );
+    .then( ( singlePhrase ) => sayPhrase( singlePhrase, voice ) )
+    .catch( () => {} );
 }
 
 function interactiveWrite( phrases, phrasePos, playing = false ) {
@@ -223,12 +238,18 @@ function interactiveMode( fileName, voice ) {
         }
       } );
 
-    } );
+    } )
+    .catch( () => {} );
 }
 
 function main() {
   const argv = minimist( process.argv.slice( 2 ) );
-  const { fileName, phraseNum } = checkArguments( argv );
+  const result = checkArguments( argv );
+  if ( !result ) {
+    return;
+  }
+
+  const { fileName, phraseNum } = result;
   const voice = argv.v ? argv.v : '';
 
   if ( !argv.i ) {
