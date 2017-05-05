@@ -1,0 +1,8 @@
+dependencies:
+  minimist@^1.2.0: 1.2.0
+  shell-escape@^0.2.0: 0.2.0
+packages:
+  /minimist/1.2.0: a35008b20f41383eec1fb914f4cd5df79a264284
+  /shell-escape/0.2.0: 68fd025eb0490b4f567a027f0bf22480b5f84133
+registry: 'https://registry.npmjs.org/'
+version: 2
