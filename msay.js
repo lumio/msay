@@ -2,6 +2,8 @@ const fs = require( 'fs' );
 const minimist = require( 'minimist' );
 const shellescape = require( 'shell-escape' );
 const spawn = require( 'child_process' ).spawn;
+const keypress = require( 'keypress' );
+const term = require( 'terminal-kit' ).terminal;
 
 function quitCauseError( code, error ) {
   console.error( `Error code ${ code }` );
@@ -12,7 +14,7 @@ function quitCauseError( code, error ) {
 function quitCauseInvalidArguments( code ) {
   quitCauseError(
     code,
-    `Use like this:\n$  msay script.txt phraseNum`
+    `Use this command like this:\n$  msay script.txt [phraseNum] [options]`
   );
 }
 
@@ -32,7 +34,13 @@ function quitCausePhraseNotFound() {
 
 function checkArguments( argv ) {
   !argv._ || !argv._.length && quitCauseInvalidArguments( -1 );
-  argv._.length !== 2 && quitCauseInvalidArguments( -2 );
+  if ( !argv.i ) {
+    argv._.length !== 2 && quitCauseInvalidArguments( -2 );
+  }
+  else {
+    argv._.length < 1 && quitCauseInvalidArguments( -2.1 );
+  }
+
   const fileName = argv._[ 0 ];
   const phraseNum = parseInt( argv._[ 1 ] );
 
@@ -73,7 +81,7 @@ function readFile( fileName ) {
 
 function parsePhrases( data ) {
   const raw = data.toString ? data.toString() : data;
-  return raw.split( '\n\n' );
+  return raw.split( '\n\n' ).map( phrase => phrase.trim() );
 }
 
 function getPhrase( phrases, phraseNum ) {
@@ -88,14 +96,20 @@ function verboseOut( phrase, phraseNum, phraseCount ) {
 }
 
 function sayPhrase( phrase ) {
-  spawn( 'say', [
-    '-v', 'Daniel',
-    '-r', '150',
-    '-i',
-    phrase
-  ], {
-    shell: true,
-    stdio: 'inherit'
+  return new Promise( ( resolve ) => {
+    const childProcess = spawn( 'say', [
+      '-v', 'Daniel',
+      '-r', '150',
+      '-i',
+      shellescape( [ phrase ] )
+    ], {
+      shell: true,
+      stdio: 'inherit'
+    } );
+
+    childProcess.on( 'close', () => {
+      resolve();
+    } );
   } );
 }
 
@@ -105,9 +119,7 @@ function initialSetup( fileName ) {
     .then( parsePhrases )
 }
 
-function main() {
-  const argv = minimist( process.argv.slice( 2 ) );
-  const { fileName, phraseNum } = checkArguments( argv );
+function defaultMode( fileName, phraseNum ) {
   let phraseCount = 0;
 
   initialSetup( fileName )
@@ -118,6 +130,108 @@ function main() {
     .then( ( phrases ) => getPhrase( phrases, phraseNum ) )
     .then( ( singlePhrase ) => verboseOut( singlePhrase, phraseNum, phraseCount ) )
     .then( sayPhrase );
+}
+
+function interactiveWrite( phrases, phrasePos, playing = false ) {
+  term.clear();
+  term( 'Position ' );
+  term.bold.cyan( phrasePos );
+  term( `/${ phrases.length }\n` );
+
+  const phrase = phrases[ phrasePos - 1 ];
+  if ( !playing ) {
+    term.bgGray.white( phrase );
+  }
+}
+
+function sanitizePos( phrases, phrasePos ) {
+  if ( !phrasePos || phrasePos < 1 ) {
+    return 1;
+  }
+  else if ( phrasePos > phrases.length ) {
+    return phrases.length;
+  }
+
+  return phrasePos;
+}
+
+function interactiveControl( key, phrases, phrasePos ) {
+  let newPhrasePos = phrasePos;
+  let playing = false;
+
+  if ( key.name === 'right' || key.name === 'up' ) {
+    newPhrasePos += 1;
+  }
+  else if ( key.name === 'left' || key.name === 'down' ) {
+    newPhrasePos -= 1;
+  }
+  else if ( key.name === 'return' ) {
+    playing = true;
+  }
+
+  newPhrasePos = sanitizePos( phrases, newPhrasePos );
+  interactiveWrite( phrases, newPhrasePos, playing );
+
+  if ( key.name === 'return' ) {
+    playing = sayPhrase( phrases[ phrasePos - 1 ] );
+  }
+
+  return [ newPhrasePos, playing ];
+}
+
+function interactiveMode( fileName ) {
+  let phrasePos = 1;
+  let phrases = [];
+  let playing = false;
+
+  initialSetup( fileName )
+    .then( ( _phrases ) => {
+      phrases = _phrases;
+    } )
+    .then( () => {
+
+      const stdin = process.stdin;
+      keypress( stdin );
+      stdin.setRawMode( true );
+      stdin.resume();
+      stdin.setEncoding( 'utf8' );
+
+      interactiveWrite( phrases, phrasePos );
+      stdin.on( 'keypress', function( ch, key ) {
+        if ( key && key.ctrl && key.name == 'c' ) {
+          process.stdin.pause();
+        }
+
+        if ( playing ) {
+          return;
+        }
+
+        const result = interactiveControl( key, phrases, phrasePos );
+        const _playing = result[ 1 ];
+        phrasePos = result[ 0 ];
+
+        if ( _playing ) {
+          playing = true;
+          _playing.then( () => {
+            playing = false;
+            interactiveWrite( phrases, phrasePos );
+          } );
+        }
+      } );
+
+    } );
+}
+
+function main() {
+  const argv = minimist( process.argv.slice( 2 ) );
+  const { fileName, phraseNum } = checkArguments( argv );
+
+  if ( !argv.i ) {
+    defaultMode( fileName, phraseNum );
+  }
+  else {
+    interactiveMode( fileName );
+  }
 }
 
 main();

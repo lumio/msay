@@ -9,7 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "keypress": "^0.2.1",
     "minimist": "^1.2.0",
-    "shell-escape": "^0.2.0"
+    "ndarray": "^1.0.18",
+    "shell-escape": "^0.2.0",
+    "terminal-kit": "^1.7.1"
   }
 }
