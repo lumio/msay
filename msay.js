@@ -5,6 +5,28 @@ const spawn = require( 'child_process' ).spawn;
 const keypress = require( 'keypress' );
 const term = require( 'terminal-kit' ).terminal;
 
+function sayPhrase( phrase, voice = '' ) {
+  let args = [
+    '-r', '150',
+    '-i',
+    shellescape( [ phrase ] )
+  ];
+  if ( voice ) {
+    args.unshift( '-v', voice );
+  }
+
+  return new Promise( ( resolve ) => {
+    const childProcess = spawn( 'say', args, {
+      shell: true,
+      stdio: 'inherit'
+    } );
+
+    childProcess.on( 'close', () => {
+      resolve();
+    } );
+  } );
+}
+
 function quitCauseError( code, error ) {
   console.error( `Error code ${ code }` );
   console.error( error );
@@ -95,31 +117,13 @@ function verboseOut( phrase, phraseNum, phraseCount ) {
   return phrase;
 }
 
-function sayPhrase( phrase ) {
-  return new Promise( ( resolve ) => {
-    const childProcess = spawn( 'say', [
-      '-v', 'Daniel',
-      '-r', '150',
-      '-i',
-      shellescape( [ phrase ] )
-    ], {
-      shell: true,
-      stdio: 'inherit'
-    } );
-
-    childProcess.on( 'close', () => {
-      resolve();
-    } );
-  } );
-}
-
 function initialSetup( fileName ) {
   return checkIfFileExists( fileName )
     .then( readFile )
     .then( parsePhrases )
 }
 
-function defaultMode( fileName, phraseNum ) {
+function defaultMode( fileName, phraseNum, voice ) {
   let phraseCount = 0;
 
   initialSetup( fileName )
@@ -129,7 +133,7 @@ function defaultMode( fileName, phraseNum ) {
     } )
     .then( ( phrases ) => getPhrase( phrases, phraseNum ) )
     .then( ( singlePhrase ) => verboseOut( singlePhrase, phraseNum, phraseCount ) )
-    .then( sayPhrase );
+    .then( ( singlePhrase ) => sayPhrase( singlePhrase, voice ) );
 }
 
 function interactiveWrite( phrases, phrasePos, playing = false ) {
@@ -155,7 +159,7 @@ function sanitizePos( phrases, phrasePos ) {
   return phrasePos;
 }
 
-function interactiveControl( key, phrases, phrasePos ) {
+function interactiveControl( key, phrases, phrasePos, voice ) {
   let newPhrasePos = phrasePos;
   let playing = false;
 
@@ -173,13 +177,13 @@ function interactiveControl( key, phrases, phrasePos ) {
   interactiveWrite( phrases, newPhrasePos, playing );
 
   if ( key.name === 'return' ) {
-    playing = sayPhrase( phrases[ phrasePos - 1 ] );
+    playing = sayPhrase( phrases[ phrasePos - 1 ], voice );
   }
 
   return [ newPhrasePos, playing ];
 }
 
-function interactiveMode( fileName ) {
+function interactiveMode( fileName, voice ) {
   let phrasePos = 1;
   let phrases = [];
   let playing = false;
@@ -206,7 +210,7 @@ function interactiveMode( fileName ) {
           return;
         }
 
-        const result = interactiveControl( key, phrases, phrasePos );
+        const result = interactiveControl( key, phrases, phrasePos, voice );
         const _playing = result[ 1 ];
         phrasePos = result[ 0 ];
 
@@ -225,12 +229,13 @@ function interactiveMode( fileName ) {
 function main() {
   const argv = minimist( process.argv.slice( 2 ) );
   const { fileName, phraseNum } = checkArguments( argv );
+  const voice = argv.v ? argv.v : '';
 
   if ( !argv.i ) {
-    defaultMode( fileName, phraseNum );
+    defaultMode( fileName, phraseNum, voice );
   }
   else {
-    interactiveMode( fileName );
+    interactiveMode( fileName, voice );
   }
 }
 
