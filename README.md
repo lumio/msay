@@ -3,6 +3,8 @@ msay
 
 This is just me playing around with the `say` command from mac OS.
 
+![msay](https://i.imgur.com/JppAPHJ.gif)
+
 ---
 
 **tl;dr**
