@@ -178,6 +178,10 @@ function interactiveControl( key, phrases, phrasePos, voice ) {
   let newPhrasePos = phrasePos;
   let playing = false;
 
+  if ( !key ) {
+    return [ newPhrasePos, playing ];
+  }
+
   if ( key.name === 'right' || key.name === 'up' ) {
     newPhrasePos += 1;
   }
