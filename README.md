@@ -3,6 +3,17 @@ msay
 
 This is just me playing around with the `say` command from mac OS.
 
+---
+
+**tl;dr**
+
+After `pnpm i` or `yarn` or `npm i`:
+
+- `./msay textfile.txt 1 -v Bruce`
+- `./msay textfile.txt -i`
+
+---
+
 I'm going to convert this into a read node module in the near future. For now this works something like this:
 
 Installing and running msay
