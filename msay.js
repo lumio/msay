@@ -153,13 +153,13 @@ function defaultMode( fileName, phraseNum, voice ) {
 
 function interactiveWrite( phrases, phrasePos, playing = false ) {
   term.clear();
-  term( 'Position ' );
-  term.bold.cyan( phrasePos );
-  term( `/${ phrases.length }\n` );
+  term.gray( 'Position ' );
+  term.bold.white( phrasePos );
+  term.gray( `/${ phrases.length }\n` );
 
   const phrase = phrases[ phrasePos - 1 ];
   if ( !playing ) {
-    term.bgGray.white( phrase );
+    term.white( phrase );
   }
 }
 
